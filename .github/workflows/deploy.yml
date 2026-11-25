@@ -1,0 +1,52 @@
+name: Deploy Hexo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # 允许在 Actions 页面手动点按钮触发
+
+permissions:
+  contents: read
+  pages: write              # 允许发布 Pages
+  id-token: write           # deploy-pages 需要 OIDC 令牌
+
+concurrency:                # 同一时间只跑一个，避免并发发布打架
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v7
+
+      - name: 安装 Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: v24.20.0
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建静态文件
+        run: |
+          npx hexo clean
+          npx hexo generate
+
+      - name: 上传产物
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: 发布到 Pages
+        id: deploy
+        uses: actions/deploy-pages@v5
